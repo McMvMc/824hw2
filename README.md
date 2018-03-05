@@ -79,6 +79,7 @@ $ export DATA_DIR=$(pwd)
 3. In the main folder of the code provided in this repository, there is an empty directory with the name `data`. 
 	- In this folder, you need to create a link to `VOCdevkit` in this folder. 
 	- If you read WSDDN paper [2], you should know that it requires bounding box proposals from Selective Search, Edge Boxes or a similar method. We provide you with this data for the assignment. You need to put these proposals in the data folder too.
+	
 ```bash
 # You can run these commands to populate the data directory
 $ # First, cd to the main code folder
@@ -86,8 +87,8 @@ $ # Then cd to the data folder
 $ cd data
 $ # Create a link to the devkit
 $ ln -s <path_to_vocdevkit> VOCdevkit2007
-$ # Also download the test data
-$ wget http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtest_06-Nov-2007.tar && tar xf VOCtest_06-Nov-2007.tar
+$ # Also download the selective search data
+$ wget http://www.cs.cmu.edu/~spurushw/hw2_files/selective_search_data.tar && tar xf selective_search_data.tar
 ```
 ##
 
@@ -106,17 +107,13 @@ You can create an instance of the `pascal_voc`  class by doing something like th
 If you understand it well, you should be able to answer these questions:
 
 #### Q 0.1: What classes does the image at index 2018 contain?
-#### Q 0.2: 
-#### Q 0.3: 
-#### Q 0.4: 
-#### Q 0.5: 
-
+#### Q 0.2: What is the filename of the image at index 2018?
 
 We'll try to use the imdb to perform some simple tasks now.
 
-#### Q 0.6 Use visdom+cv2 to visualize the top 10 bounding box proposals for image at index 2018. You would need to first plot the image and then plot the rectangles for each bounding box proposal.  
+#### Q 0.3 Use visdom+cv2 to visualize the top 10 bounding box proposals for image at index 2018. You would need to first plot the image and then plot the rectangles for each bounding box proposal.  
 
-#### Q 0.7 Use visdom+cv2 to visualize the ground truth boxes for image at index 2018.
+#### Q 0.4 Use visdom+cv2 to visualize the ground truth boxes for image at index 2018.
 ***Hint**: Checkout `vis_detections` in `test.py` for creating the images.*
 
 
