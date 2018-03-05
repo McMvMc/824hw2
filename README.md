@@ -38,7 +38,7 @@ If you are using AWS instance setup using the provided instructions, you should 
 
 
 ## Task 0: Visualization and Understanding the data structures
-***AWS users should perform this task on the t2.micro instances***
+***AWS users should perform this task on the t2.micro instances or your local machine***
 ### Visualization using Visdom
 In this assignment, we will use two packages for visualization. In Task 0, we will use [visdom](https://github.com/facebookresearch/visdom). 
 You can install visdom using 
