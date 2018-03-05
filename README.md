@@ -218,6 +218,7 @@ $ ./make.sh
 ```
 
 The main script for training is ``train.py``.  Read all the comments to understand what each part does. There are three major components that you need to work on:
+
 - The data layer ``RoIDataLayer``
 - The network architecture and functionality ``WSDDN``
 - Visualization using both Tensorboard and Visdom
@@ -237,7 +238,10 @@ In ``train.py``,
 - Again make sure you use appropriate tags for tensorboard
 
 In ``test.py``,
+
 - Use tensorboard to plot images with bounding box predictions. Since you evaluate every 5000 iterations during training, this will be plotted automatically during training.
 
+#### Q2.4 Train the model using the settings provided in ``experiments/cfgs/wsddn.yml`` for 50000 iterations.
+
 Include all the code, downloaded images from visdom, tensorboard files and screenshots of tensorboard after training.
-Also download images from tensorboard for the last step and add them to the report. Report the final class-wise performance on the test set in mAP.
+Also download images from tensorboard for the last step and add them to the report. Report the final class-wise AP on the test set and the mAP.
