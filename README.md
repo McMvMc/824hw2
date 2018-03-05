@@ -189,12 +189,6 @@ When you're logging to Tensorboard, make sure you use good tag names. For exampl
 - At the end of training, use Visdom to plot 20 randomly chosen images (same images as Q1.6) and corresponding heatmaps from the validation set.
 - Report the training loss, training and validation ``metric1`` and ``metric2`` achieved at the end of training (in the report). 
 
-
-#### Q 1.7 Change the architecture of the model to output higher resolution output maps using one or more upsampling layer. Keep the architecture same until Conv5. Train the model by initializing till Conv5 using an ImageNet pretrained model.
-- Hint: You can add or remove Conv layers from ``model.classifier``. Any architecture is fine here. Just make sure that the output resolution is atleast 96x96. If you add too many layers, your training is going to be slower. So optimize for that too. 
-- For this question only visualize images and heatmaps using Tensorboard at similar intervals as before. 
-- You don't have to plot the rest of the quantities that you did for previous questions (if you haven't put flags to turn off logging the other quantities, it's okay to log them too - just don't add them to the report).
-
 #### Q 1.7 (Extra credit - do this only after Task 2) The outputs of the model from Q1.6 are score maps (or heat maps). Try to come up with a reasonable algorithm to predict a bounding box from the heatmaps. 
 - Write the code for this in ``main.py``. 
 - Visualize 20 validation images (using anything) with bounding boxes for the ground truth classes (assume that you know which classes exist in the image - plot boxes only for GT classes using the GT labels). 
