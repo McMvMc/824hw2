@@ -206,7 +206,7 @@ When you're logging to Tensorboard, make sure you use good tag names. For exampl
 
 First, make sure you understand the WSDDN model. 
 
-We're going to use an existing PyTorch [Faster-RCNN repository](https://github.com/ruotianluo/pytorch-faster-rcnn) to implement WSDDN. So there are many parts of the code that are not relevant to us.
+We're going to use an existing PyTorch [Faster-RCNN repository](https://github.com/longcw/faster_rcnn_pytorch) to implement WSDDN. So there are many parts of the code that are not relevant to us.
 Compile the code by doing this:
 ```bash
 $ cd faster_rcnn
