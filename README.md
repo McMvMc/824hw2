@@ -211,8 +211,11 @@ Compile the code by doing this:
 ```bash
 $ cd faster_rcnn
 $ #Activate conda pytorch environment 
+$ conda install pip pyyaml sympy h5py cython numpy scipy
+$ pip install easydict
 $ ./make.sh
 ```
+(If the above step produces error, report it on piazza). 
 
 The main script for training is ``train.py``.  Read all the comments to understand what each part does. There are three major components that you need to work on:
 
