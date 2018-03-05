@@ -193,7 +193,7 @@ When you're logging to Tensorboard, make sure you use good tag names. For exampl
 - Write the code for this in ``main.py``. 
 - Visualize 20 validation images (using anything) with bounding boxes for the ground truth classes (assume that you know which classes exist in the image - plot boxes only for GT classes using the GT labels). 
 - Note that there is no training involved in this step. Just use the pretrained model from Q1.6.
-- Evaluate the mAP on the validation set using the new bounding box predictor that you have created (hopefully you know how to do it using IMDBs). The performance will be 
+- Evaluate the mAP on the validation set using the new bounding box predictor that you have created (hopefully you know how to do it using IMDBs). The performance will be bad, but don't worry about it. 
 
 
 ## Task 2: Weakly Supervised Deep Detection Networks
