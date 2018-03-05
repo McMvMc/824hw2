@@ -154,7 +154,7 @@ LocalizerAlexNet(
 #### Q 1.2 What is the output resolution of the model?
 
 ### Plotting using tensorboard from pytorch
-I've included the definition of the ``Logger`` class in ``logger.py``. In order to plot to tensorboard, you need to create an instance of the ``Logger`` class and use it's methods to plot things. I've also written a function ``model_param_histo_summary`` that basically plots the histograms of all weight and gradients of weights if you pass the model as input. You can even plot variables directly (take a look at the definition of ``model_param_histo_summary``).
+I've included the definition of the ``Logger`` class in ``logger.py``. In order to plot to tensorboard, you need to create an instance of the ``Logger`` class and use it's methods to plot things. I've also written a function ``model_param_histo_summary`` that basically plots the histograms of all weight and gradients of weights if you pass the model as input. You can even plot ``Variable``s directly (take a look at the definition of ``model_param_histo_summary``).
 ```python
 logger = Logger(<log_dir>, name='freeloc')
 ```
