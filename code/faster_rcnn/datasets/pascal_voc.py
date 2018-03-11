@@ -22,7 +22,7 @@ import uuid
 from .voc_eval import voc_eval
 from fast_rcnn.config import cfg
 
-from myutils import keyboard
+# from myutils import keyboard
 
 
 class pascal_voc(imdb):

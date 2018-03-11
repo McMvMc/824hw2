@@ -3,7 +3,8 @@ import os
 import shutil
 import time
 import sys
-sys.path.insert(0,'/home/spurushw/reps/hw-wsddn-sol/faster_rcnn')
+# sys.path.insert(0,'/home/spurushw/reps/hw-wsddn-sol/faster_rcnn')
+sys.path.insert(0, '/Users/mike_dev/Desktop/824/hw2-release/code/faster_rcnn/')
 import sklearn
 import sklearn.metrics
 
@@ -35,9 +36,9 @@ parser.add_argument('--epochs', default=2, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=256, type=int,
+parser.add_argument('-b', '--batch-size', default=1, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
-parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
@@ -77,15 +78,15 @@ def main():
         model = localizer_alexnet_robust(pretrained=args.pretrained)
     print(model)
 
-    model.features = torch.nn.DataParallel(model.features)
+    # torch.cuda.set_device(0)
+    # print(torch.cuda.current_device())
+    # model.features = torch.nn.DataParallel(model.features)
     model.cuda()
 
     # TODO:
     # define loss function (criterion) and optimizer
-
-
-
-
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -186,6 +187,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         data_time.update(time.time() - end)
 
         target = target.type(torch.FloatTensor).cuda(async=True)
+        # target = target.type(torch.LongTensor).cuda(async=True)
         input_var = torch.autograd.Variable(input, requires_grad=True)
         target_var = torch.autograd.Variable(target)
 
@@ -193,20 +195,24 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``
         # compute output
+        input_var = input_var.cuda()
 
-
+        optimizer.zero_grad()
+        output = model(input_var)
+        loss = criterion(output, target_var)
 
 
         # measure metrics and record loss
-        m1 = metric1(imoutput.data, target)
-        m2 = metric2(imoutput.data, target)
+        # m1 = metric1(imoutput.data, target)
+        # m2 = metric2(imoutput.data, target)
         losses.update(loss.data[0], input.size(0))
-        avg_m1.update(m1[0], input.size(0))
-        avg_m2.update(m2[0], input.size(0))
+        # avg_m1.update(m1[0], input.size(0))
+        # avg_m2.update(m2[0], input.size(0))
         
         # TODO: 
         # compute gradient and do SGD step
-
+        loss.backward()
+        optimizer.step()
 
 
 
@@ -250,16 +256,20 @@ def validate(val_loader, model, criterion):
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``
         # compute output
-
+        # target = target.cuda()
+        # input_var = input_var.cuda()
+        # target_var = target_var.cuda()
+        output = model(input_var)
+        loss = criterion(output, target_var)
 
 
 
         # measure metrics and record loss
-        m1 = metric1(imoutput.data, target)
-        m2 = metric2(imoutput.data, target)
+        # m1 = metric1(imoutput.data, target)
+        # m2 = metric2(imoutput.data, target)
         losses.update(loss.data[0], input.size(0))
-        avg_m1.update(m1[0], input.size(0))
-        avg_m2.update(m2[0], input.size(0))
+        # avg_m1.update(m1[0], input.size(0))
+        # avg_m2.update(m2[0], input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)

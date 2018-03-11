@@ -9,10 +9,10 @@ from PIL import Image
 import os
 import os.path
 import numpy as np
-from myutils import *
+# from myutils import *
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm']
-
+GT_CLASSES = 'gt_classes'
 
 def is_image_file(filename):
     """Checks if a file is an image.
@@ -30,9 +30,10 @@ def is_image_file(filename):
 def find_classes(imdb):
     #TODO: classes: list of classes
     #TODO: class_to_idx: dictionary with keys=classes and values=class index
-
-
-
+    classes = imdb.classes
+    class_to_idx = {}
+    for i in range(len(classes)):
+        class_to_idx[classes[i]] = i
 
     return classes, class_to_idx
 
@@ -41,9 +42,13 @@ def make_dataset(imdb, class_to_idx):
     #TODO: return list of (image path, list(+ve class indices)) tuples
     #You will be using this in IMDBDataset
 
-
-
-
+    n = imdb.num_images
+    images = [None] * n
+    gt = imdb.gt_roidb()
+    for i in range(n):
+        im_path = imdb.image_path_at(i)
+        classes = np.unique(gt[i][GT_CLASSES])
+        images[i] = (im_path, classes)
 
     return images
 
@@ -77,17 +82,55 @@ class LocalizerAlexNet(nn.Module):
     def __init__(self, num_classes=20):
         super(LocalizerAlexNet, self).__init__()
         #TODO: Define model
-
+        # (0): Conv2d(3, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2))
+        # (1): ReLU(inplace)
+        # (2): MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1), ceil_mode=False)
+        # (3): Conv2d(64, 192, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+        # (4): ReLU(inplace)
+        # (5): MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1), ceil_mode=False)
+        # (6): Conv2d(192, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        # (7): ReLU(inplace)
+        # (8): Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        # (9): ReLU(inplace)
+        # (10): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        # (11): ReLU(inplace)
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2)),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1), ceil_mode=False),
+            nn.Conv2d(64, 192, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2)),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1), ceil_mode=False),
+            nn.Conv2d(192, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True)
+        )
+        # (classifier): Sequential(
+        #     (0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+        # (1): ReLU(inplace)
+        # (2): Conv2d(256, 256, kernel_size=(1, 1), stride=(1, 1))
+        # (3): ReLU(inplace)
+        # (4): Conv2d(256, 20, kernel_size=(1, 1), stride=(1, 1))
+        # )
+        self.classifier = nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=(1, 1), stride=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 20, kernel_size=(1, 1), stride=(1, 1))
+        )
 
 
 
 
     def forward(self, x):
         #TODO: Define forward pass
-
-
-
-
+        x = self.features(x)
+        x = self.classifier(x)
+        x =
         return x
 
 
@@ -119,8 +162,12 @@ def localizer_alexnet(pretrained=False, **kwargs):
     #TODO: Initialize weights correctly based on whether it is pretrained or
     #not
 
-
-
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['alexnet']))
+        for idx, layer in enumerate(model.features.modules()):
+            if idx%2 == 0:
+                # wt_h, wt_w = model.classifier[0].weight.size()
+                nn.init.xavier_normal(layer)
 
 
     return model
@@ -188,9 +235,12 @@ class IMDBDataset(data.Dataset):
         """
         # TODO: Write the rest of this function
 
+        target = np.zeros(20)
+        img_path = self.imgs[index][0]
+        cls_list = self.imgs[index][1]
 
-
-
+        img = Image.open(img_path)
+        target[cls_list-1] = 1
 
 
         if self.transform is not None:
