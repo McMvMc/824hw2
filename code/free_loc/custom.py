@@ -109,7 +109,7 @@ class LocalizerAlexNet(nn.Module):
             nn.ReLU(inplace=True)
         )
         # (classifier): Sequential(
-        #     (0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+        # (0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
         # (1): ReLU(inplace)
         # (2): Conv2d(256, 256, kernel_size=(1, 1), stride=(1, 1))
         # (3): ReLU(inplace)
@@ -130,7 +130,11 @@ class LocalizerAlexNet(nn.Module):
         #TODO: Define forward pass
         x = self.features(x)
         x = self.classifier(x)
-        x =
+        global_max = nn.MaxPool2d(kernel_size=(17, 17))
+        x = global_max(x)
+        x = x.view(x.shape[0], x.shape[1])
+        # softmax = nn.Softmax(dim=1)
+        # x = softmax(x)
         return x
 
 
@@ -163,11 +167,12 @@ def localizer_alexnet(pretrained=False, **kwargs):
     #not
 
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['alexnet']))
-        for idx, layer in enumerate(model.features.modules()):
-            if idx%2 == 0:
-                # wt_h, wt_w = model.classifier[0].weight.size()
-                nn.init.xavier_normal(layer)
+        pre_weights = model_zoo.load_url(model_urls['alexnet'])
+        own_weights = model.state_dict()
+        for item_name in own_weights.keys():
+            if 'features' in item_name:
+                own_weights[item_name] = pre_weights[item_name]
+                own_weights[item_name].requires_grad = False
 
 
     return model

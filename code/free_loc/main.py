@@ -21,6 +21,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
+import logger
 from datasets.factory import get_imdb
 from custom import *
 
@@ -53,7 +54,7 @@ parser.add_argument('--resume', default='', type=str, metavar='PATH',
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                    help='use pre-trained model')
+                    help='use pre-trained model', default=True)
 parser.add_argument('--world-size', default=1, type=int,
                     help='number of distributed processes')
 parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
@@ -85,8 +86,8 @@ def main():
 
     # TODO:
     # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.SGD(model.classifier.parameters(), lr=args.lr)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -140,6 +141,7 @@ def main():
     # TODO: Create loggers for visdom and tboard
     # TODO: You can pass the logger objects to train(), make appropriate
     # modifications to train()
+    data_log = logger( './logs/', name = 'freeloc')
 
 
 
@@ -152,7 +154,7 @@ def main():
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
+        train(train_loader, model, criterion, optimizer, epoch, data_log)
 
         # evaluate on validation set
         if epoch%args.eval_freq==0 or epoch==args.epochs-1:
@@ -171,7 +173,7 @@ def main():
 
 
 #TODO: You can add input arguments if you wish
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, epoch, data_log):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -231,6 +233,10 @@ def train(train_loader, model, criterion, optimizer, epoch):
                    epoch, i, len(train_loader), batch_time=batch_time,
                    data_time=data_time, loss=losses, avg_m1=avg_m1,
                    avg_m2=avg_m2))
+            data_log.scalar_summary(tag='train/loss', value=losses, step=i)
+            data_log.scalar_summary(tag='train/mAP', value=avg_m1, step=i)
+            data_log.scalar_summary(tag='train/avg_m2', value=avg_m2, step=i)
+            data_log.model_param_histo_summary(model=model, step=i)
 
         #TODO: Visualize things as mentioned in handout
         #TODO: Visualize at appropriate intervals
@@ -257,8 +263,8 @@ def validate(val_loader, model, criterion):
         # TODO: Compute loss using ``criterion``
         # compute output
         # target = target.cuda()
-        # input_var = input_var.cuda()
         # target_var = target_var.cuda()
+        input_var = input_var.cuda()
         output = model(input_var)
         loss = criterion(output, target_var)
 
