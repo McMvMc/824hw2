@@ -5,6 +5,7 @@ import time
 import sys
 # sys.path.insert(0,'/home/spurushw/reps/hw-wsddn-sol/faster_rcnn')
 sys.path.insert(0, '/Users/mike_dev/Desktop/824/hw2-release/code/faster_rcnn/')
+sys.path.insert(0, '/Users/mike_dev/Desktop/824/hw2-release/code/')
 import sklearn
 import sklearn.metrics
 
@@ -20,6 +21,9 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+import visdom
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 import logger
 from datasets.factory import get_imdb
@@ -30,14 +34,16 @@ model_names = sorted(name for name in models.__dict__
     and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('--arch', default='localizer_alexnet')
+# parser.add_argument('--arch', default='localizer_alexnet')
+parser.add_argument('--arch', default='localizer_alexnet_robust')
+
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=2, type=int, metavar='N',
+parser.add_argument('--epochs', default=45, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=1, type=int,
+parser.add_argument('-b', '--batch-size', default=32, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
                     metavar='LR', help='initial learning rate')
@@ -81,13 +87,16 @@ def main():
 
     # torch.cuda.set_device(0)
     # print(torch.cuda.current_device())
-    # model.features = torch.nn.DataParallel(model.features)
+    model.features = torch.nn.DataParallel(model.features)
     model.cuda()
 
     # TODO:
     # define loss function (criterion) and optimizer
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.SGD(model.classifier.parameters(), lr=args.lr)
+    criterion = nn.BCEWithLogitsLoss().cuda()
+    # optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.SGD(model.classifier.parameters(), args.lr,
+            momentum = args.momentum,
+            weight_decay = args.weight_decay)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -141,20 +150,24 @@ def main():
     # TODO: Create loggers for visdom and tboard
     # TODO: You can pass the logger objects to train(), make appropriate
     # modifications to train()
-    data_log = logger( './logs/', name = 'freeloc')
+    if args.arch == 'localizer_alexnet':
+        data_log = logger.Logger('./logs/', name='freeloc')
+        vis = visdom.Visdom(server='http://localhost', port='8097')
+    else:
+        data_log = logger.Logger('./logs_robust/', name='freeloc')
+        vis = visdom.Visdom(server='http://localhost', port='8090')
 
 
 
-
-
-
-
-
+    if args.arch == 'localizer_alexnet':
+        args.epochs = 30
+    else:
+        args.epochs = 45
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, data_log)
+        train(train_loader, model, criterion, optimizer, epoch, data_log, vis, args.arch)
 
         # evaluate on validation set
         if epoch%args.eval_freq==0 or epoch==args.epochs-1:
@@ -171,9 +184,11 @@ def main():
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
 
+    print('end of training')
+
 
 #TODO: You can add input arguments if you wish
-def train(train_loader, model, criterion, optimizer, epoch, data_log):
+def train(train_loader, model, criterion, optimizer, epoch, data_log, vis, mode):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -184,12 +199,27 @@ def train(train_loader, model, criterion, optimizer, epoch, data_log):
     model.train()
 
     end = time.time()
-    for i, (input, target) in enumerate(train_loader):
+    total_iter = len(train_loader)
+    upsampler = transforms.Compose([transforms.ToPILImage(),
+                                   transforms.Resize((512,512))])
+    cm_jet = mpl.cm.get_cmap('jet')
+    to_pil = transforms.ToPILImage()
+    cnt = 0
+    images = np.zeros((1, 512, 512, 3))
+    cls_names = train_loader.dataset.classes
+    # images_vis = np.zeros((train_loader.batch_size, 512, 512, 3))
+    # heatmap_vis = []
+    if mode == 'localizer_alexnet':
+        last_epoch = 28
+    else:
+        last_epoch = 43
+
+    for i, (input, target, im_idx) in enumerate(train_loader):
+        cur_step = epoch * total_iter + i
         # measure data loading time
         data_time.update(time.time() - end)
 
         target = target.type(torch.FloatTensor).cuda(async=True)
-        # target = target.type(torch.LongTensor).cuda(async=True)
         input_var = torch.autograd.Variable(input, requires_grad=True)
         target_var = torch.autograd.Variable(target)
 
@@ -198,25 +228,56 @@ def train(train_loader, model, criterion, optimizer, epoch, data_log):
         # TODO: Compute loss using ``criterion``
         # compute output
         input_var = input_var.cuda()
-
-        optimizer.zero_grad()
         output = model(input_var)
+
+        # store visualization
+        if (i%int(len(train_loader)/4)) == 0 and (epoch<3 or epoch >last_epoch or epoch==15):
+            for j in range(output.shape[0]):
+                dt_idices = [idx for idx in range(output.shape[1]) if target[j, idx] == 1]
+                heatmap = np.zeros((len(dt_idices), 512, 512, 4))
+
+                img_vis = input[j].cpu().numpy()
+                img_vis = (img_vis - img_vis.min()) / (img_vis.max() - img_vis.min())
+                vis.image(img_vis, \
+                       opts=dict(title=str(epoch) + '_' + str(i) + '_' + str(j) + '_image'))
+
+                images[0] = np.uint8(np.transpose(img_vis, (1, 2, 0)) * 255)
+                a = output.data.cpu().numpy()
+                a.resize((a.shape[0], a.shape[1], 1, a.shape[2], a.shape[3]))
+                for cls_i in range(len(dt_idices)):
+                    k = dt_idices[cls_i]
+                    a_norm = (a[j, k] + a[j,k].min()) / (a[j,k].max() - a[j,k].min())
+                    b = upsampler(torch.Tensor(a_norm))
+                    b = np.uint8(cm_jet(np.array(b)) * 255)
+                    heatmap[cls_i] = b
+                    vis.image(np.transpose(b,(2,0,1)),
+                          opts=dict(title=str(epoch) + '_' + str(i) + '_' + str(j) + '_heatmap_' + cls_names[k]))
+                print(str(cnt + epoch * 4)+' '+str(j))
+                data_log.image_summary(tag='/train/'+str(cnt+epoch*4)+'/'+str(j)+'/heatmap',
+                                       images=heatmap, step=cur_step)
+                data_log.image_summary(tag='/train/'+str(cnt+epoch*4)+'/'+str(j)+'/images',
+                                       images=images, step=cur_step)
+            cnt = cnt+1
+
+        ks = output.size()[2]
+        global_max = nn.MaxPool2d(kernel_size=(ks, ks))
+        output = global_max(output)
+        output = output.view(output.shape[0], output.shape[1])
         loss = criterion(output, target_var)
 
 
         # measure metrics and record loss
-        # m1 = metric1(imoutput.data, target)
-        # m2 = metric2(imoutput.data, target)
+        m1 = metric1(output.data, target)
+        m2 = metric2(output.data, target)
         losses.update(loss.data[0], input.size(0))
-        # avg_m1.update(m1[0], input.size(0))
-        # avg_m2.update(m2[0], input.size(0))
+        avg_m1.update(m1, input.size(0))
+        avg_m2.update(m2, input.size(0))
         
         # TODO: 
         # compute gradient and do SGD step
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-
 
 
         # measure elapsed time
@@ -233,14 +294,14 @@ def train(train_loader, model, criterion, optimizer, epoch, data_log):
                    epoch, i, len(train_loader), batch_time=batch_time,
                    data_time=data_time, loss=losses, avg_m1=avg_m1,
                    avg_m2=avg_m2))
-            data_log.scalar_summary(tag='train/loss', value=losses, step=i)
-            data_log.scalar_summary(tag='train/mAP', value=avg_m1, step=i)
-            data_log.scalar_summary(tag='train/avg_m2', value=avg_m2, step=i)
-            data_log.model_param_histo_summary(model=model, step=i)
 
         #TODO: Visualize things as mentioned in handout
         #TODO: Visualize at appropriate intervals
-        
+        if i % args.print_freq == 0:
+            data_log.scalar_summary(tag='train/loss', value=losses.avg, step=cur_step)
+            data_log.scalar_summary(tag='train/top1_precision', value=avg_m1.avg, step=cur_step)
+            data_log.scalar_summary(tag='train/top3_precision', value=avg_m2.avg, step=cur_step)
+            data_log.model_param_histo_summary(model=model, step=cur_step)
 
 def validate(val_loader, model, criterion):
     batch_time = AverageMeter()
@@ -253,7 +314,7 @@ def validate(val_loader, model, criterion):
     model.eval()
 
     end = time.time()
-    for i, (input, target) in enumerate(val_loader):
+    for i, (input, target, im_idx) in enumerate(val_loader):
         target = target.type(torch.FloatTensor).cuda(async=True)
         input_var = torch.autograd.Variable(input, volatile=True)
         target_var = torch.autograd.Variable(target, volatile=True)
@@ -266,16 +327,20 @@ def validate(val_loader, model, criterion):
         # target_var = target_var.cuda()
         input_var = input_var.cuda()
         output = model(input_var)
+        ks = output.size()[2]
+        global_max = nn.MaxPool2d(kernel_size=(ks, ks))
+        output = global_max(output)
+        output = output.view(output.shape[0], output.shape[1])
         loss = criterion(output, target_var)
 
 
 
         # measure metrics and record loss
-        # m1 = metric1(imoutput.data, target)
-        # m2 = metric2(imoutput.data, target)
+        m1 = metric1(output.data, target)
+        m2 = metric2(output.data, target)
         losses.update(loss.data[0], input.size(0))
-        # avg_m1.update(m1[0], input.size(0))
-        # avg_m2.update(m2[0], input.size(0))
+        avg_m1.update(m1, input.size(0))
+        avg_m2.update(m2, input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -337,11 +402,27 @@ def adjust_learning_rate(optimizer, epoch):
 
 def metric1(output, target):
     # TODO: Ignore for now - proceed till instructed
-    return [0]
+    corr = 0.0
+    for i in range(target.shape[0]):
+        s = output[i]
+        sort_idx = sorted(range(len(s)), key=lambda k: s[k])
+        top3_output = np.take(output[i], sort_idx[-1])
+        top3_target = np.take(target[i], sort_idx[-1])
+        corr = corr+int((top3_output*top3_target).sum()!=0)*1.0
+
+    return corr/target.shape[0]
 
 def metric2(output, target):
     # TODO: Ignore for now - proceed till instructed
-    return [0]
+    corr = 0.0
+    for i in range(target.shape[0]):
+        s = output[i]
+        sort_idx = sorted(range(len(s)), key=lambda k: s[k])
+        top3_output = np.take(output[i], sort_idx[-3:])
+        top3_target = np.take(target[i], sort_idx[-3:])
+        corr = corr+int((top3_output*top3_target).sum()!=0)*1.0
+
+    return corr/target.shape[0]
 
 if __name__ == '__main__':
     main()

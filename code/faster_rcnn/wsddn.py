@@ -44,12 +44,37 @@ class WSDDN(nn.Module):
             print(classes)
         
         #TODO: Define the WSDDN model
-        
-        
-        
-        
-        
-        
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2)),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1)),
+            nn.Conv2d(64, 192, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2)),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1)),
+            nn.Conv2d(192, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True)
+        )
+
+        self.roi_pool = RoIPool(6, 6, 1.0/16)
+
+        self.classifier = nn.Sequential(
+            nn.Linear(in_features=9216, out_features=4096),
+            nn.ReLU(inplace = True),
+            nn.Dropout(p=0.5),
+            nn.Linear(in_features=4096, out_features=4096),
+            nn.ReLU(inplace=True)
+        )
+        self.score_cls = nn.FC(
+            nn.Linear(in_features=4096, out_features=20)
+        )
+        self.score_det = nn.FC(
+            nn.Linear(in_features=4096, out_features=20)
+        )
+
         # loss
         self.cross_entropy = None
 
@@ -59,6 +84,23 @@ class WSDDN(nn.Module):
     @property
     def loss(self):
         return self.cross_entropy
+
+    def spatial_pyramid_pool(self, previous_conv, num_sample, previous_conv_size, out_pool_size):
+        for i in range(len(out_pool_size)):
+            # print(previous_conv_size)
+            h_wid = int(math.ceil(previous_conv_size[0] / out_pool_size[i]))
+            w_wid = int(math.ceil(previous_conv_size[1] / out_pool_size[i]))
+            h_pad = (h_wid * out_pool_size[i] - previous_conv_size[0] + 1) / 2
+            w_pad = (w_wid * out_pool_size[i] - previous_conv_size[1] + 1) / 2
+            maxpool = nn.MaxPool2d((h_wid, w_wid), stride=(h_wid, w_wid), padding=(h_pad, w_pad))
+            x = maxpool(previous_conv)
+            if (i == 0):
+                spp = x.view(num_sample, -1)
+                # print("spp size:",spp.size())
+            else:
+                # print("size:",spp.size())
+                spp = torch.cat((spp, x.view(num_sample, -1)), 1)
+        return spp
 	
     def forward(self, im_data, rois, im_info, gt_vec=None,
                 gt_boxes=None, gt_ishard=None, dontcare_areas=None):
@@ -69,11 +111,16 @@ class WSDDN(nn.Module):
         # compute cls_prob which are N_roi X 20 scores
         # Checkout faster_rcnn.py for inspiration
 
+        x = self.features(im_data)
+        region_proposals = self.roi_pool(im_data, )
 
 
+        x = spp()
 
-
-
+        x = self.classifier(x)
+        cls_score = self.score_cls(x)
+        det_score = self.score_det(x)
+        cls_prob = cls_score * det_score
 
         if self.training:
             label_vec = network.np_to_variable(gt_vec, is_cuda=True)
@@ -93,12 +140,10 @@ class WSDDN(nn.Module):
         #output of forward()
         #Checkout forward() to see how it is called
 
+        criterion = nn.BCEWithLogitsLoss().cuda()
+        loss = criterion(cls_prob, label_vec)
 
-
-
-
-
-	return loss
+        return loss
 
     def get_image_blob_noscale(self, im):
         im_orig = im.astype(np.float32, copy=True)

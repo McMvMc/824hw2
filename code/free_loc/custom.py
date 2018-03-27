@@ -130,11 +130,6 @@ class LocalizerAlexNet(nn.Module):
         #TODO: Define forward pass
         x = self.features(x)
         x = self.classifier(x)
-        global_max = nn.MaxPool2d(kernel_size=(17, 17))
-        x = global_max(x)
-        x = x.view(x.shape[0], x.shape[1])
-        # softmax = nn.Softmax(dim=1)
-        # x = softmax(x)
         return x
 
 
@@ -142,15 +137,36 @@ class LocalizerAlexNet(nn.Module):
 
 class LocalizerAlexNetRobust(nn.Module):
     def __init__(self, num_classes=20):
-        super(LocalizerAlexNetHighres, self).__init__()
+        super(LocalizerAlexNetRobust, self).__init__()
         #TODO: Ignore for now until instructed
-
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2)),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1), ceil_mode=False),
+            nn.Conv2d(64, 192, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2)),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), dilation=(1, 1), ceil_mode=False),
+            nn.Conv2d(192, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(inplace=True)
+        )
+        self.classifier = nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1),
+            nn.Conv2d(256, 256, kernel_size=(1, 1), stride=(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 20, kernel_size=(1, 1), stride=(1, 1))
+        )
 
 
     def forward(self, x):
         #TODO: Ignore for now until instructed
-
-
+        x = self.features(x)
+        x = self.classifier(x)
         return x
 
 
@@ -172,7 +188,7 @@ def localizer_alexnet(pretrained=False, **kwargs):
         for item_name in own_weights.keys():
             if 'features' in item_name:
                 own_weights[item_name] = pre_weights[item_name]
-                own_weights[item_name].requires_grad = False
+                # own_weights[item_name].requires_grad = False
 
 
     return model
@@ -186,10 +202,15 @@ def localizer_alexnet_robust(pretrained=False, **kwargs):
     """
     model = LocalizerAlexNetRobust(**kwargs)
     #TODO: Ignore for now until instructed
+    # TODO: Define model
 
-
-
-
+    if pretrained:
+        pre_weights = model_zoo.load_url(model_urls['alexnet'])
+        own_weights = model.state_dict()
+        for item_name in own_weights.keys():
+            if 'features' in item_name:
+                own_weights[item_name] = pre_weights[item_name]
+                # own_weights[item_name].requires_grad = False
 
 
     return model
@@ -252,7 +273,7 @@ class IMDBDataset(data.Dataset):
             img = self.transform(img)
         if self.target_transform is not None:
             target = self.target_transform(target)
-        return img, target
+        return img, target, index
 
     def __len__(self):
         return len(self.imgs)
