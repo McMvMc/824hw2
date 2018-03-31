@@ -18,6 +18,7 @@ import roi_data_layer.roidb as rdl_roidb
 from roi_data_layer.layer import RoIDataLayer
 from datasets.factory import get_imdb
 from fast_rcnn.config import cfg, cfg_from_file
+from test import test_net
 
 try:
     from termcolor import cprint
@@ -52,6 +53,9 @@ log_grads = False
 
 remove_all_log = False   # remove all historical experiments in TensorBoard
 exp_name = None # the previous experiment name in TensorBoard
+
+thresh = 0.0001
+
 # ------------
 
 if rand_seed is not None:
@@ -74,6 +78,12 @@ data_layer = RoIDataLayer(roidb, imdb.num_classes)
 
 # Create network and initialize
 net = WSDDN(classes=imdb.classes, debug=_DEBUG)
+net.features = torch.nn.DataParallel(net.features)
+net.roi_pool = torch.nn.DataParallel(net.roi_pool)
+net.classifier = torch.nn.DataParallel(net.classifier)
+net.score_cls = torch.nn.DataParallel(net.score_cls)
+net.score_det = torch.nn.DataParallel(net.score_det)
+
 network.weights_normal_init(net, dev=0.001)
 if os.path.exists('pretrained_alexnet.pkl'):
     pret_net = pkl.load(open('pretrained_alexnet.pkl','r'))
@@ -114,7 +124,7 @@ re_cnt = False
 t = Timer()
 t.tic()
 for step in range(start_step, end_step+1):
-
+    net.train()
     # get one batch
     blobs = data_layer.forward()
     im_data = blobs['data']
@@ -144,6 +154,11 @@ for step in range(start_step, end_step+1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
+    if step%5000 == 0 and step>0:
+        save_name = 'test_'+str(step)
+        net.eval()
+        aps = test_net(save_name, net, imdb,
+                       cfg.TRAIN.BATCH_SIZE, thresh=thresh, visualize=use_visdom)
 
 
 

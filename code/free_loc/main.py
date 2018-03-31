@@ -4,8 +4,8 @@ import shutil
 import time
 import sys
 # sys.path.insert(0,'/home/spurushw/reps/hw-wsddn-sol/faster_rcnn')
-sys.path.insert(0, '/Users/mike_dev/Desktop/824/hw2-release/code/faster_rcnn/')
-sys.path.insert(0, '/Users/mike_dev/Desktop/824/hw2-release/code/')
+sys.path.insert(0, '/home/mike/Desktop/824hw2/code/faster_rcnn/')
+sys.path.insert(0, '/home/mike/Desktop/824hw2/code/')
 import sklearn
 import sklearn.metrics
 
@@ -408,7 +408,7 @@ def metric1(output, target):
         sort_idx = sorted(range(len(s)), key=lambda k: s[k])
         top3_output = np.take(output[i], sort_idx[-1])
         top3_target = np.take(target[i], sort_idx[-1])
-        corr = corr+int((top3_output*top3_target).sum()!=0)*1.0
+        corr = corr+int((top3_output*top3_target) !=0)*1.0
 
     return corr/target.shape[0]
 

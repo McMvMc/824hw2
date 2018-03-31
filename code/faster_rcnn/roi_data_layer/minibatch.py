@@ -11,6 +11,7 @@ import numpy as np
 import numpy.random as npr
 import cv2
 import os
+import torch
 import torchvision.datasets
 import torchvision.datasets.folder as dsetfolder
 import torchvision.transforms as transforms
@@ -57,20 +58,23 @@ def get_weak_minibatch(roidb, num_classes):
         #TODO: same as get_minibatch, but we only use the image-level labels
         #So blobs['labels'] should contain a 1x20 binary vector for each image 
 
-        labels = roidb[im_i]['gt_classes']
+        labels = np.zeros((1, 20))
+        labels_idx = np.unique(roidb[im_i]['gt_classes'])
+        for l_i in labels_idx:
+            if l_i>0:
+                labels[0, l_i-1] = 1
 
         # Add to RoIs blob
-        rois = _project_im_rois(im_rois, im_scales[im_i])
+        rois = _project_im_rois(im_rois, im_scales[im_i])[:rois_per_image,:]
         batch_ind = im_i * np.ones((rois.shape[0], 1))
         rois_blob_this_image = np.hstack((batch_ind, rois))
         rois_blob = np.vstack((rois_blob, rois_blob_this_image))
 
         # Add to labels, bbox targets, and bbox loss blobs
-        labels_blob = np.hstack((labels_blob, labels))
-        bbox_targets_blob = np.vstack((bbox_targets_blob, bbox_targets))
-        bbox_inside_blob = np.vstack((bbox_inside_blob, bbox_inside_weights))
+        labels_blob = np.vstack((labels_blob, labels))
         # all_overlaps = np.hstack((all_overlaps, overlaps))
-        
+    # rois_blob = torch.Tensor(rois_blob)
+    # rois_blob = torch.autograd.Variable(rois_blob, requires_grad=False)
     blobs['rois'] = rois_blob
     blobs['labels'] = labels_blob
     blobs['im_name'] = os.path.basename(roidb[0]['image'])

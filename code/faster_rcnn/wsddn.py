@@ -13,7 +13,7 @@ from fast_rcnn.bbox_transform import bbox_transform_inv, clip_boxes
 import network
 from network import Conv2d, FC
 from roi_pooling.modules.roi_pool import RoIPool
-from vgg16 import VGG16
+# from vgg16 import VGG16
 
 def nms_detections(pred_boxes, scores, nms_thresh, inds=None):
     dets = np.hstack((pred_boxes,
@@ -68,10 +68,10 @@ class WSDDN(nn.Module):
             nn.Linear(in_features=4096, out_features=4096),
             nn.ReLU(inplace=True)
         )
-        self.score_cls = nn.FC(
+        self.score_cls = nn.Sequential(
             nn.Linear(in_features=4096, out_features=20)
         )
-        self.score_det = nn.FC(
+        self.score_det = nn.Sequential(
             nn.Linear(in_features=4096, out_features=20)
         )
 
@@ -84,23 +84,6 @@ class WSDDN(nn.Module):
     @property
     def loss(self):
         return self.cross_entropy
-
-    def spatial_pyramid_pool(self, previous_conv, num_sample, previous_conv_size, out_pool_size):
-        for i in range(len(out_pool_size)):
-            # print(previous_conv_size)
-            h_wid = int(math.ceil(previous_conv_size[0] / out_pool_size[i]))
-            w_wid = int(math.ceil(previous_conv_size[1] / out_pool_size[i]))
-            h_pad = (h_wid * out_pool_size[i] - previous_conv_size[0] + 1) / 2
-            w_pad = (w_wid * out_pool_size[i] - previous_conv_size[1] + 1) / 2
-            maxpool = nn.MaxPool2d((h_wid, w_wid), stride=(h_wid, w_wid), padding=(h_pad, w_pad))
-            x = maxpool(previous_conv)
-            if (i == 0):
-                spp = x.view(num_sample, -1)
-                # print("spp size:",spp.size())
-            else:
-                # print("size:",spp.size())
-                spp = torch.cat((spp, x.view(num_sample, -1)), 1)
-        return spp
 	
     def forward(self, im_data, rois, im_info, gt_vec=None,
                 gt_boxes=None, gt_ishard=None, dontcare_areas=None):
@@ -112,11 +95,8 @@ class WSDDN(nn.Module):
         # Checkout faster_rcnn.py for inspiration
 
         x = self.features(im_data)
-        region_proposals = self.roi_pool(im_data, )
-
-
-        x = spp()
-
+        x = self.roi_pool(x, torch.autograd.Variable(torch.Tensor(rois), requires_grad=False).cuda())
+        x = x.view(x.size(0), 256 * 6 * 6)
         x = self.classifier(x)
         cls_score = self.score_cls(x)
         det_score = self.score_det(x)
@@ -141,9 +121,12 @@ class WSDDN(nn.Module):
         #Checkout forward() to see how it is called
 
         criterion = nn.BCEWithLogitsLoss().cuda()
-        loss = criterion(cls_prob, label_vec)
 
-        return loss
+        loss = 0
+        for i in range(cls_prob.shape[0]):
+            loss = loss + criterion(cls_prob[i], label_vec.transpose(1,0)[0])
+
+        return loss/cls_prob.shape[0]
 
     def get_image_blob_noscale(self, im):
         im_orig = im.astype(np.float32, copy=True)
