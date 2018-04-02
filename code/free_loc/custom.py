@@ -154,9 +154,9 @@ class LocalizerAlexNetRobust(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.classifier = nn.Sequential(
+            nn.Dropout(0.3),
             nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1)),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.1),
             nn.Conv2d(256, 256, kernel_size=(1, 1), stride=(1, 1)),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 20, kernel_size=(1, 1), stride=(1, 1))

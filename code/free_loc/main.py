@@ -3,9 +3,16 @@ import os
 import shutil
 import time
 import sys
-# sys.path.insert(0,'/home/spurushw/reps/hw-wsddn-sol/faster_rcnn')
-sys.path.insert(0, '/home/mike/Desktop/824hw2/code/faster_rcnn/')
-sys.path.insert(0, '/home/mike/Desktop/824hw2/code/')
+from sys import platform
+
+if platform == "darwin":
+    sys.path.insert(0, '/Users/mike_dev/Desktop/824/hw2-release/codefaster_rcnn/')
+    sys.path.insert(0, '/Users/mike_dev/Desktop/824/hw2-release/code')
+else:
+    # sys.path.insert(0,'/home/spurushw/reps/hw-wsddn-sol/faster_rcnn')
+    sys.path.insert(0, '/home/mike/Desktop/824hw2/code/faster_rcnn/')
+    sys.path.insert(0, '/home/mike/Desktop/824hw2/code/')
+
 import sklearn
 import sklearn.metrics
 
@@ -26,6 +33,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 import logger
+import _init_paths
 from datasets.factory import get_imdb
 from custom import *
 
@@ -34,8 +42,8 @@ model_names = sorted(name for name in models.__dict__
     and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-# parser.add_argument('--arch', default='localizer_alexnet')
-parser.add_argument('--arch', default='localizer_alexnet_robust')
+parser.add_argument('--arch', default='localizer_alexnet')
+# parser.add_argument('--arch', default='localizer_alexnet_robust')
 
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
@@ -83,6 +91,7 @@ def main():
         model = localizer_alexnet(pretrained=args.pretrained)
     elif args.arch=='localizer_alexnet_robust':
         model = localizer_alexnet_robust(pretrained=args.pretrained)
+        args.lr = args.lr
     print(model)
 
     # torch.cuda.set_device(0)
@@ -92,11 +101,9 @@ def main():
 
     # TODO:
     # define loss function (criterion) and optimizer
-    criterion = nn.BCEWithLogitsLoss().cuda()
+    criterion = nn.MultiLabelSoftMarginLoss().cuda()
     # optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
-    optimizer = torch.optim.SGD(model.classifier.parameters(), args.lr,
-            momentum = args.momentum,
-            weight_decay = args.weight_decay)
+    optimizer = torch.optim.SGD(model.classifier.parameters(), args.lr)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -156,6 +163,7 @@ def main():
     else:
         data_log = logger.Logger('./logs_robust/', name='freeloc')
         vis = visdom.Visdom(server='http://localhost', port='8090')
+
 
 
 
@@ -231,7 +239,8 @@ def train(train_loader, model, criterion, optimizer, epoch, data_log, vis, mode)
         output = model(input_var)
 
         # store visualization
-        if (i%int(len(train_loader)/4)) == 0 and (epoch<3 or epoch >last_epoch or epoch==15):
+        if (i%int(len(train_loader)/4)) == 0 and (epoch<3 or epoch >last_epoch or epoch==15
+                                                  or epoch==30):
             for j in range(output.shape[0]):
                 dt_idices = [idx for idx in range(output.shape[1]) if target[j, idx] == 1]
                 heatmap = np.zeros((len(dt_idices), 512, 512, 4))
