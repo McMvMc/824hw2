@@ -50,10 +50,19 @@ lr_decay = 1./10
 
 rand_seed = 1024
 _DEBUG = False
+
+# logs
 use_tensorboard = False
 use_visdom = False
 log_grads = False
 data_log = logger.Logger('./logs/', name='freeloc')
+vis = visdom.Visdom(port=8097)
+vis_loss_window = vis.line(
+    Y = np.array([0.]), 
+    opts=dict(xlable='step', ylabel='Train Loss', title='trainning loss', showlegend=True))
+vis_map_window = vis.line(
+    Y = np.array([0.]),
+    opts = dict(xlabel='step', ylabel='mean AP', title='Test mean AP', showlegend=True))
 
 remove_all_log = False   # remove all historical experiments in TensorBoard
 exp_name = None # the previous experiment name in TensorBoard
@@ -168,14 +177,28 @@ for step in range(start_step, end_step+1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
+
+    # visdom + MAP ; tensorboard + AP
     if step%5000 == 0 and step>0:
         save_name = 'test_'+str(step)
         net.eval()
         imdb_test.competition_mode(on=True)
         aps = test_net(save_name, net, imdb_test,
                        cfg.TRAIN.BATCH_SIZE, thresh=thresh, visualize=use_visdom)
+        for i in range(len(imdb.classes)):
+            cls_name = imdb.classes[i]
+            cur_ap = aps[i]
+            logger.scalar_summary('{}_AP'.format(cls_name), cur_ap, step)
 
+        vis.line(X = np.array([step]), Y = np.array([np.mean(aps)]),
+                win = vis_map_window, update = 'append')
 
+    # tensorboard + weights + grads
+    if step%2000 == 0 and step>0:
+        for name, weights in net.named_parameters():
+            tag = name.replace('.', '/')
+            logger.histo_summary(tag, weights.data.cpu().numpy(), step)
+            logger.histo_summary(tag+"/gradients", weights.grad.data.cpu().numpy(),step)
 
 
     #TODO: Perform all visualizations here
@@ -184,11 +207,15 @@ for step in range(start_step, end_step+1):
     #The intervals for different things are defined in the handout
     if visualize and step%vis_interval==0:
         #TODO: Create required visualizations
-        data_log.scalar_summary(tag='train/loss', value=loss, step=step)
         if use_tensorboard:
             print('Logging to Tensorboard')
+            data_log.scalar_summary(tag='train/loss', value=loss, step=step)
         if use_visdom:
             print('Logging to visdom')
+            vis.line( X=np.array([step]), Y=np.array([loss]), 
+                win=vis_loss_window, update='append')
+            # vis.line( X=np.arange(step, step+vis_interval, vis_interval),
+            #         Y=np.array([loss]), win=vis_loss_window, update='append')
 
     
     # Save model occasionally 

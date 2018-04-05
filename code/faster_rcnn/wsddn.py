@@ -101,8 +101,10 @@ class WSDDN(nn.Module):
         x = self.classifier(x)
         cls_score = self.score_cls(x)
         det_score = self.score_det(x)
-        cls_score = F.softmax(cls_score, dim=-1)
-        det_score = F.softmax(det_score, dim=-2)
+        # cls_score = F.softmax(cls_score, dim=-1)
+        # det_score = F.softmax(det_score, dim=-2)
+        cls_score = F.softmax(cls_score, dim=1)
+        det_score = F.softmax(det_score, dim=0)        
         cls_prob = cls_score * det_score
 
         if self.training:
@@ -123,13 +125,13 @@ class WSDDN(nn.Module):
         #output of forward()
         #Checkout forward() to see how it is called
 
-        cls_prob_sum = torch.sum(cls_prob, dim=0, keepdim=True)
-        cls_prob_sum = torch.clamp(cls_prob_sum, 0, 1)
-        loss = self.criterion(cls_prob_sum, label_vec)
+        # cls_prob_sum = torch.sum(cls_prob, dim=0, keepdim=True)
+        # cls_prob_sum = torch.clamp(cls_prob_sum, min=0, max=1)
+        # loss = self.criterion(cls_prob_sum, label_vec)
 
-        # loss = 0
-        # for i in range(cls_prob.size(0)):
-        #     loss += self.criterion(cls_prob[i,:], label_vec)
+        loss = 0
+        for i in range(cls_prob.size(0)):
+            loss += self.criterion(torch.clamp(cls_prob[i,:], min=0, max=1), label_vec)
 
         return loss
 
