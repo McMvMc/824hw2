@@ -103,8 +103,9 @@ def test_net(name, net, imdb, max_per_image=300, thresh=0.05, visualize=False,
 
     roidb = imdb.roidb
 
-    skip_num = 10
-    for i in range(0, num_images,skip_num):
+    skip_num = 100
+    # for i in range(0, num_images,skip_num):
+    for i in range(0, num_images):
         im = cv2.imread(imdb.image_path_at(i))
         rois = imdb.roidb[i]['boxes']
         _t['im_detect'].tic()
@@ -127,7 +128,7 @@ def test_net(name, net, imdb, max_per_image=300, thresh=0.05, visualize=False,
             keep = nms(cls_dets, cfg.TEST.NMS)
             cls_dets = cls_dets[keep, :]
             if visualize:
-                im2show = vis_detections(im2show, imdb.classes[j], cls_dets)
+                im2show = vis_detections(im2show, imdb.classes[newj], cls_dets)
             all_boxes[j][i] = cls_dets
 
         # Limit to max_per_image detections *over all classes*

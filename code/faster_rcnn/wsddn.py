@@ -77,6 +77,7 @@ class WSDDN(nn.Module):
 
         # loss
         self.cross_entropy = None
+        self.criterion = nn.BCELoss(size_average=True).cuda()
 
         # for log
         self.debug = debug
@@ -95,16 +96,18 @@ class WSDDN(nn.Module):
         # Checkout faster_rcnn.py for inspiration
 
         x = self.features(im_data)
-        x = self.roi_pool(x, torch.autograd.Variable(torch.Tensor(rois), requires_grad=False).cuda())
+        x = self.roi_pool(x, network.np_to_variable(rois, is_cuda=True))
         x = x.view(x.size(0), 256 * 6 * 6)
         x = self.classifier(x)
         cls_score = self.score_cls(x)
         det_score = self.score_det(x)
+        cls_score = F.softmax(cls_score, dim=-1)
+        det_score = F.softmax(det_score, dim=-2)
         cls_prob = cls_score * det_score
 
         if self.training:
             label_vec = network.np_to_variable(gt_vec, is_cuda=True)
-            label_vec = label_vec.view(self.n_classes,-1)
+            # label_vec = label_vec.view(self.n_classes,-1)
             self.cross_entropy = self.build_loss(cls_prob, label_vec)
         return cls_prob
     
@@ -120,13 +123,15 @@ class WSDDN(nn.Module):
         #output of forward()
         #Checkout forward() to see how it is called
 
-        criterion = nn.BCEWithLogitsLoss().cuda()
+        cls_prob_sum = torch.sum(cls_prob, dim=0, keepdim=True)
+        cls_prob_sum = torch.clamp(cls_prob_sum, 0, 1)
+        loss = self.criterion(cls_prob_sum, label_vec)
 
-        loss = 0
-        for i in range(cls_prob.shape[0]):
-            loss = loss + criterion(cls_prob[i], label_vec.transpose(1,0)[0])
+        # loss = 0
+        # for i in range(cls_prob.size(0)):
+        #     loss += self.criterion(cls_prob[i,:], label_vec)
 
-        return loss/cls_prob.shape[0]
+        return loss
 
     def get_image_blob_noscale(self, im):
         im_orig = im.astype(np.float32, copy=True)

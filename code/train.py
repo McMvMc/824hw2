@@ -8,6 +8,7 @@ import torch.utils.model_zoo as model_zoo
 from torch.nn.parameter import Parameter
 import numpy as np
 from datetime import datetime
+import re
 
 import cPickle as pkl
 import network
@@ -19,6 +20,7 @@ from roi_data_layer.layer import RoIDataLayer
 from datasets.factory import get_imdb
 from fast_rcnn.config import cfg, cfg_from_file
 from test import test_net
+import logger
 
 try:
     from termcolor import cprint
@@ -34,11 +36,12 @@ def log_print(text, color=None, on_color=None, attrs=None):
 # hyper-parameters
 # ------------
 imdb_name = 'voc_2007_trainval'
+imdb_name_test = 'voc_2007_test'
 cfg_file = 'experiments/cfgs/wsddn.yml'
 pretrained_model = 'data/pretrained_model/alexnet_imagenet.npy'
 output_dir = 'models/saved_model'
 visualize = True
-vis_interval = 5000
+vis_interval = 500
 
 start_step = 0
 end_step = 50000
@@ -50,11 +53,13 @@ _DEBUG = False
 use_tensorboard = False
 use_visdom = False
 log_grads = False
+data_log = logger.Logger('./logs/', name='freeloc')
 
 remove_all_log = False   # remove all historical experiments in TensorBoard
 exp_name = None # the previous experiment name in TensorBoard
 
-thresh = 0.0001
+# thresh = 0.0001
+thresh = 0.001
 
 # ------------
 
@@ -72,6 +77,7 @@ log_interval = cfg.TRAIN.LOG_IMAGE_ITERS
 
 # load imdb and create data later
 imdb = get_imdb(imdb_name)
+imdb_test = get_imdb(imdb_name_test)
 rdl_roidb.prepare_roidb(imdb)
 roidb = imdb.roidb
 data_layer = RoIDataLayer(roidb, imdb.num_classes)
@@ -92,6 +98,14 @@ else:
     pkl.dump(pret_net, open('pretrained_alexnet.pkl','wb'), pkl.HIGHEST_PROTOCOL)
 own_state = net.state_dict()
 for name, param in pret_net.items():
+    if 'features' in name:
+        name = name.replace('features.','features.module.')
+    if 'classifier' in name:
+        m = re.search('\d', name)
+        k = m.start()
+        name = name[:k] + str(int(name[k])-1) + name[k+1:]
+        name = name.replace('classifier.', 'classifier.module.')
+
     if name not in own_state:
         continue
     if isinstance(param, Parameter):
@@ -157,7 +171,8 @@ for step in range(start_step, end_step+1):
     if step%5000 == 0 and step>0:
         save_name = 'test_'+str(step)
         net.eval()
-        aps = test_net(save_name, net, imdb,
+        imdb_test.competition_mode(on=True)
+        aps = test_net(save_name, net, imdb_test,
                        cfg.TRAIN.BATCH_SIZE, thresh=thresh, visualize=use_visdom)
 
 
@@ -169,6 +184,7 @@ for step in range(start_step, end_step+1):
     #The intervals for different things are defined in the handout
     if visualize and step%vis_interval==0:
         #TODO: Create required visualizations
+        data_log.scalar_summary(tag='train/loss', value=loss, step=step)
         if use_tensorboard:
             print('Logging to Tensorboard')
         if use_visdom:
